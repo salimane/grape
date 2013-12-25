@@ -634,6 +634,94 @@ describe Grape::API do
       get '/'
       last_response.body.should eql 'default'
     end
+
+    it 'calls all filters when validation passes' do
+      a = double('before mock')
+      b = double('before_validation mock')
+      c = double('after_validation mock')
+      d = double('after mock')
+
+      subject.params do
+        requires :id, type: Integer
+      end
+      subject.resource ':id' do
+        before { a.do_something! }
+        before_validation { b.do_something! }
+        after_validation { c.do_something! }
+        after { d.do_something! }
+        get do
+          'got it'
+        end
+      end
+
+      a.should_receive(:do_something!).exactly(1).times
+      b.should_receive(:do_something!).exactly(1).times
+      c.should_receive(:do_something!).exactly(1).times
+      d.should_receive(:do_something!).exactly(1).times
+
+      get '/123'
+      last_response.status.should eql 200
+      last_response.body.should eql 'got it'
+    end
+
+    it 'calls only before filters when validation fails' do
+      a = double('before mock')
+      b = double('before_validation mock')
+      c = double('after_validation mock')
+      d = double('after mock')
+
+      subject.params do
+        requires :id, type: Integer
+      end
+      subject.resource ':id' do
+        before { a.do_something! }
+        before_validation { b.do_something! }
+        after_validation { c.do_something! }
+        after { d.do_something! }
+        get do
+          'got it'
+        end
+      end
+
+      a.should_receive(:do_something!).exactly(1).times
+      b.should_receive(:do_something!).exactly(1).times
+      c.should_receive(:do_something!).exactly(0).times
+      d.should_receive(:do_something!).exactly(0).times
+
+      get '/abc'
+      last_response.status.should eql 400
+      last_response.body.should eql 'id is invalid'
+    end
+
+    it 'calls filters in the correct order' do
+      i = 0
+      a = double('before mock')
+      b = double('before_validation mock')
+      c = double('after_validation mock')
+      d = double('after mock')
+
+      subject.params do
+        requires :id, type: Integer
+      end
+      subject.resource ':id' do
+        before { a.here(i += 1) }
+        before_validation { b.here(i += 1) }
+        after_validation { c.here(i += 1) }
+        after { d.here(i += 1) }
+        get do
+          'got it'
+        end
+      end
+
+      a.should_receive(:here).with(1).exactly(1).times
+      b.should_receive(:here).with(2).exactly(1).times
+      c.should_receive(:here).with(3).exactly(1).times
+      d.should_receive(:here).with(4).exactly(1).times
+
+      get '/123'
+      last_response.status.should eql 200
+      last_response.body.should eql 'got it'
+    end
   end
 
   context 'format' do
@@ -786,7 +874,7 @@ describe Grape::API do
       end
     end
   end
-  describe '.basic' do
+  describe '.http_basic' do
     it 'protects any resources on the same scope' do
       subject.http_basic do |u, p|
         u == 'allow'
@@ -824,6 +912,51 @@ describe Grape::API do
       last_response.status.should eql 401
       get '/hello', {}, 'HTTP_AUTHORIZATION' => encode_basic_auth('allow', 'whatever')
       last_response.status.should eql 200
+    end
+
+    it 'has access to the current endpoint' do
+      basic_auth_context = nil
+
+      subject.http_basic do |u, p|
+        basic_auth_context = self
+
+        u == 'allow'
+      end
+
+      subject.get(:hello) { "Hello, world." }
+      get '/hello', {}, 'HTTP_AUTHORIZATION' => encode_basic_auth('allow', 'whatever')
+      basic_auth_context.should be_an_instance_of(Grape::Endpoint)
+    end
+
+    it 'has access to helper methods' do
+      subject.helpers do
+        def authorize(u, p)
+          u == 'allow' && p == 'whatever'
+        end
+      end
+
+      subject.http_basic do |u, p|
+        authorize(u, p)
+      end
+
+      subject.get(:hello) { "Hello, world." }
+      get '/hello', {}, 'HTTP_AUTHORIZATION' => encode_basic_auth('allow', 'whatever')
+      last_response.status.should eql 200
+      get '/hello', {}, 'HTTP_AUTHORIZATION' => encode_basic_auth('disallow', 'whatever')
+      last_response.status.should eql 401
+    end
+
+    it 'can set instance variables accessible to routes' do
+      subject.http_basic do |u, p|
+        @hello = "Hello, world."
+
+        u == 'allow'
+      end
+
+      subject.get(:hello) { @hello }
+      get '/hello', {}, 'HTTP_AUTHORIZATION' => encode_basic_auth('allow', 'whatever')
+      last_response.status.should eql 200
+      last_response.body.should eql "Hello, world."
     end
   end
 
@@ -993,7 +1126,7 @@ describe Grape::API do
         raise "rain!"
       end
       get '/exception'
-      last_response.status.should eql 403
+      last_response.status.should eql 500
     end
 
     it 'rescues only certain errors if rescue_from is called with specific errors' do
@@ -1002,7 +1135,7 @@ describe Grape::API do
       subject.get('/unrescued') { raise "beefcake" }
 
       get '/rescued'
-      last_response.status.should eql 403
+      last_response.status.should eql 500
 
       lambda { get '/unrescued' }.should raise_error
     end
@@ -1477,7 +1610,16 @@ describe Grape::API do
         raise "rain!"
       end
       get '/exception'
-      last_response.status.should eql 403
+      last_response.status.should eql 500
+    end
+    it 'uses the default error status in error!' do
+      subject.rescue_from :all
+      subject.default_error_status 400
+      subject.get '/exception' do
+        error! "rain!"
+      end
+      get '/exception'
+      last_response.status.should eql 400
     end
     it 'uses the default error status in error!' do
       subject.rescue_from :all

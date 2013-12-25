@@ -41,7 +41,6 @@ the context of recreating parts of the Twitter API.
 ```ruby
 module Twitter
   class API < Grape::API
-
     version 'v1', using: :header, vendor: 'twitter'
     format :json
 
@@ -56,7 +55,6 @@ module Twitter
     end
 
     resource :statuses do
-
       desc "Return a public timeline."
       get :public_timeline do
         Status.limit(20)
@@ -111,7 +109,6 @@ module Twitter
         authenticate!
         current_user.statuses.find(params[:id]).destroy
       end
-
     end
   end
 end
@@ -152,7 +149,7 @@ require 'grape'
 
 class API < Grape::API
   get :hello do
-    {hello: "world"}
+    { hello: "world" }
   end
 end
 
@@ -303,7 +300,7 @@ The Grape endpoint:
 
 ```ruby
 post '/statuses' do
-  Status.create!({ text: params[:text] })
+  Status.create!(text: params[:text])
 end
 ```
 
@@ -312,7 +309,7 @@ Multipart POSTs and PUTs are supported as well.
 The request:
 
 ```
-curl --form image_file=image.jpg http://localhost:9292/upload
+curl --form image_file=@image.jpg http://localhost:9292/upload
 ```
 
 The Grape endpoint:
@@ -465,10 +462,10 @@ You can rescue a `Grape::Exceptions::ValidationErrors` and respond with a custom
 
 ```ruby
 rescue_from Grape::Exceptions::ValidationErrors do |e|
-    Rack::Response.new({
-        'status' => e.status,
-        'message' => e.message,
-        'errors' => e.errors
+    Rack::Response.new(
+      status: e.status,
+      message: e.message,
+      errors: e.errors
     }.to_json, e.status)
 end
 ```
@@ -479,7 +476,6 @@ The validation errors are grouped by parameter name and can be accessed via ``Gr
 
 Grape supports I18n for parameter-related error messages, but will fallback to English if
 translations for the default locale have not been provided. See [en.yml](lib/grape/locale/en.yml) for message keys.
-
 
 ## Headers
 
@@ -500,7 +496,13 @@ end
 You can set a response header with `header` inside an API.
 
 ```ruby
-header "X-Robots-Tag", "noindex"
+header 'X-Robots-Tag', 'noindex'
+```
+
+When raising `error!`, pass additional headers as arguments.
+
+```ruby
+error! 'Unauthorized', 401, 'X-Error-Detail' => 'Invalid token.'
 ```
 
 ## Routes
@@ -558,7 +560,6 @@ You can set, get and delete your cookies very simply using `cookies` method.
 
 ```ruby
 class API < Grape::API
-
   get 'status_count' do
     cookies[:status_count] ||= 0
     cookies[:status_count] += 1
@@ -568,7 +569,6 @@ class API < Grape::API
   delete 'status_count' do
     { status_count: cookies.delete(:status_count) }
   end
-
 end
 ```
 
@@ -576,10 +576,10 @@ Use a hash-based syntax to set more than one value.
 
 ```ruby
 cookies[:status_count] = {
-    value: 0,
-    expires: Time.tomorrow,
-    domain: '.twitter.com',
-    path: '/'
+  value: 0,
+  expires: Time.tomorrow,
+  domain: '.twitter.com',
+  path: '/'
 }
 
 cookies[:status_count][:value] +=1
@@ -602,11 +602,11 @@ cookies.delete :status_count, path: '/'
 You can redirect to a new url temporarily (302) or permanently (301).
 
 ```ruby
-redirect "/statuses"
+redirect '/statuses'
 ```
 
 ```ruby
-redirect "/statuses", permanent: true
+redirect '/statuses', permanent: true
 ```
 
 ## Allowed Methods
@@ -617,13 +617,11 @@ behavior with `do_not_route_head!`.
 
 ``` ruby
 class API < Grape::API
-
   do_not_route_head!
 
   get '/example' do
     # only responds to GET
   end
-
 end
 ```
 
@@ -633,7 +631,6 @@ include an "Allow" header listing the supported methods.
 
 ```ruby
 class API < Grape::API
-
   get '/rt_count' do
     { rt_count: current_user.rt_count }
   end
@@ -645,7 +642,6 @@ class API < Grape::API
     current_user.rt_count += params[:value].to_i
     { rt_count: current_user.rt_count }
   end
-
 end
 ```
 
@@ -678,14 +674,27 @@ curl -X DELETE -v http://localhost:3000/rt_count/
 You can abort the execution of an API method by raising errors with `error!`.
 
 ```ruby
-error! "Access Denied", 401
+error! 'Access Denied', 401
 ```
 
 You can also return JSON formatted objects by raising error! and passing a hash
 instead of a message.
 
 ```ruby
-error!({ "error" => "unexpected error", "detail" => "missing widget" }, 500)
+error!({ error: "unexpected error", detail: "missing widget" }, 500)
+```
+
+### Default Error HTTP Status Code
+
+By default Grape returns a 500 status code from `error!`. You can change this with `default_error_status`.
+
+``` ruby
+class API < Grape::API
+  default_error_status 400
+  get '/example' do
+    error! "This should have http status code 400"
+  end
+end
 ```
 
 ### Default Error HTTP Status Code
@@ -732,9 +741,11 @@ You can also rescue specific exceptions.
 
 ```ruby
 class Twitter::API < Grape::API
-  rescue_from ArgumentError, NotImplementedError
+  rescue_from ArgumentError, UserDefinedError
 end
 ```
+
+In this case ```UserDefinedError``` must be inherited from ```StandardError```.
 
 The error format will match the request format. See "Content-Types" below.
 
@@ -1131,13 +1142,18 @@ You can use any Hypermedia representer, including [Roar](https://github.com/apot
 Roar renders JSON and works with the built-in Grape JSON formatter. Add `Roar::Representer::JSON`
 into your models or call `to_json` explicitly in your API implementation.
 
-Other alternatives include `ActiveModel::Serializers` via [grape-active_model_serializers](https://github.com/jrhe/grape-active_model_serializers).
-
 ### Rabl
 
 You can use [Rabl](https://github.com/nesquena/rabl) templates with the help of the
 [grape-rabl](https://github.com/LTe/grape-rabl) gem, which defines a custom Grape Rabl
 formatter.
+
+### Active Model Serializers
+
+You can use [Active Model Serializers](https://github.com/rails-api/active_model_serializers) serializers with the help of the
+[grape-active_model_serializers](https://github.com/jrhe/grape-active_model_serializers) gem, which defines a custom Grape AMS
+formatter.
+
 
 ## Authentication
 
@@ -1213,7 +1229,21 @@ end
 
 ## Before and After
 
-Execute a block before or after every API call with `before` and `after`.
+Blocks can be executed before or after every API call, using `before`, `after`,
+`before_validation` and `after_validation`.
+
+Before and after callbacks execute in the following order:
+
+1. `before`
+2. `before_validation`
+3. _validations_
+4. `after_validation`
+5. _the API call_
+6. `after`
+
+Steps 2, 3 and 4 only happen if validation succeeds.
+
+E.g. using `before`:
 
 ```ruby
 before do
@@ -1230,7 +1260,10 @@ class MyAPI < Grape::API
   end
 
   namespace :foo do
-    before { @blah = 'blah' }
+    before do
+      @blah = 'blah'
+    end
+
     get '/' do
       "root - foo - #{@blah}"
     end
@@ -1250,6 +1283,34 @@ The behaviour is then:
 GET /           # 'root - '
 GET /foo        # 'root - foo - blah'
 GET /foo/bar    # 'root - foo - bar - blah'
+```
+
+Params on a `namespace` (or whatever alias you are using) also work when using
+`before_validation` or `after_validation`:
+
+```ruby
+class MyAPI < Grape::API
+  params do
+    requires :blah, type: Integer
+  end
+  resource ':blah' do
+    after_validation do
+      # if we reach this point validations will have passed
+      @blah = declared(params, include_missing: false)[:blah]
+    end
+
+    get '/' do
+      @blah.class
+    end
+  end
+end
+```
+
+The behaviour is then:
+
+```bash
+GET /123        # 'Fixnum'
+GET /foo        # 400 error - 'blah is invalid'
 ```
 
 ## Anchoring
@@ -1368,7 +1429,6 @@ Create `config/initializers/reload_api.rb`.
 
 ```ruby
 if Rails.env.development?
-
   ActiveSupport::Dependencies.explicitly_unloadable_constants << "Twitter::API"
 
   api_files = Dir["#{Rails.root}/app/api/**/*.rb"]
@@ -1378,12 +1438,10 @@ if Rails.env.development?
   ActionDispatch::Callbacks.to_prepare do
     api_reloader.execute_if_updated
   end
-
 end
 ```
 
 See [StackOverflow #3282655](http://stackoverflow.com/questions/3282655/ruby-on-rails-3-reload-lib-directory-for-each-request/4368838#4368838) for more information.
-
 
 ## Performance Monitoring
 
@@ -1393,14 +1451,10 @@ with Librato Metrics with the [grape-librato](https://github.com/seanmoon/grape-
 
 ## Contributing to Grape
 
-Grape is work of dozens of contributors. You're encouraged to submit pull requests, propose
+Grape is work of hundreds of contributors. You're encouraged to submit pull requests, propose
 features and discuss issues.
 
-* Fork the project
-* Write tests for your new feature or a test that reproduces a bug
-* Implement your feature or make a bug fix
-* Add a line to `CHANGELOG.md` describing your change
-* Commit, push and make a pull request. Bonus points for topic branches.
+See [CONTRIBUTING](CONTRIBUTING.md).
 
 ## License
 

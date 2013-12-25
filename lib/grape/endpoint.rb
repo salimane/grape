@@ -146,6 +146,8 @@ module Grape
     end
 
     def call!(env)
+      extend helpers
+
       env['api.endpoint'] = self
       if options[:app]
         options[:app].call(env)
@@ -162,7 +164,7 @@ module Grape
     #
     # @param params [Hash] The initial hash to filter. Usually this will just be `params`
     # @param options [Hash] Can pass `:include_missing` and `:stringify` options.
-    def declared(params, options = {}, declared_params = settings[:declared_params])
+    def declared(params, options = {}, declared_params = settings.gather(:declared_params))
       options[:include_missing] = true unless options.key?(:include_missing)
 
       unless declared_params
@@ -202,10 +204,10 @@ module Grape
     # end user with the specified message.
     #
     # @param message [String] The message to display.
-    # @param status [Integer] the HTTP Status Code. Defaults to default_error_status, 403 if not set.
-    def error!(message, status = nil)
+    # @param status [Integer] the HTTP Status Code. Defaults to default_error_status, 500 if not set.
+    def error!(message, status = nil, headers = nil)
       status = settings[:default_error_status] unless status
-      throw :error, message: message, status: status
+      throw :error, message: message, status: status, headers: headers
     end
 
     # Redirect to a new url.
@@ -372,10 +374,11 @@ module Grape
       @params = @request.params
       @headers = @request.headers
 
-      extend helpers
       cookies.read(@request)
 
       run_filters befores
+
+      run_filters before_validations
 
       # Retieve validations from this namespace and all parent namespaces.
       validation_errors = []
@@ -406,7 +409,7 @@ module Grape
       b.use Rack::Head
       b.use Grape::Middleware::Error,
             format: settings[:format],
-            default_status: settings[:default_error_status] || 403,
+            default_status: settings[:default_error_status] || 500,
             rescue_all: settings[:rescue_all],
             rescued_errors: aggregate_setting(:rescued_errors),
             default_error_formatter: settings[:default_error_formatter],
@@ -424,8 +427,21 @@ module Grape
         end
       end
 
-      b.use Rack::Auth::Basic, settings[:auth][:realm], &settings[:auth][:proc] if settings[:auth] && settings[:auth][:type] == :http_basic
-      b.use Rack::Auth::Digest::MD5, settings[:auth][:realm], settings[:auth][:opaque], &settings[:auth][:proc] if settings[:auth] && settings[:auth][:type] == :http_digest
+      if settings[:auth]
+        auth_proc         = settings[:auth][:proc]
+        auth_proc_context = self
+        auth_middleware   = {
+          http_basic:   { class: Rack::Auth::Basic,       args: [settings[:auth][:realm]] },
+          http_digest:  { class: Rack::Auth::Digest::MD5, args: [settings[:auth][:realm], settings[:auth][:opaque]] }
+        }[settings[:auth][:type]]
+
+        # evaluate auth proc in context of endpoint
+        if auth_middleware
+          b.use auth_middleware[:class], *auth_middleware[:args] do |*args|
+            auth_proc_context.instance_exec(*args, &auth_proc)
+          end
+        end
+      end
 
       if settings[:version]
         b.use Grape::Middleware::Versioner.using(settings[:version_options][:using]),
@@ -473,6 +489,10 @@ module Grape
 
     def befores
       aggregate_setting(:befores)
+    end
+
+    def before_validations
+      aggregate_setting(:before_validations)
     end
 
     def after_validations

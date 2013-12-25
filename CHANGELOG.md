@@ -5,7 +5,12 @@ Next Release
 
 * [#510](https://github.com/intridea/grape/pull/510): Support lambda-based default values for params - [@myitcv](https://github.com/myitcv).
 * [#511](https://github.com/intridea/grape/pull/511): Add `required` option for OAuth2 middleware - [@bcm](https://github.com/bcm).
-* [#520](https://github.com/intridea/grape/pull/520): Use default_error_status if set in error! function - [@salimane](https://github.com/salimane).
+* [#520](https://github.com/intridea/grape/pull/520): Use `default_error_status` to specify the default status code returned from `error!` - [@salimane](https://github.com/salimane).
+* [#525](https://github.com/intridea/grape/pull/525): The default status code returned from `error!` has been changed from 403 to 500 - [@dblock](https://github.com/dblock).
+* [#526](https://github.com/intridea/grape/pull/526): Allow specifying headers in `error!` - [@dblock](https://github.com/dblock).
+* [#523](https://github.com/intridea/grape/pull/523): Aliased `before` as `before_validation` - [@myitcv](https://github.com/myitcv).
+* [#527](https://github.com/intridea/grape/pull/527): `before_validation` now a distinct callback (supersedes [#523](https://github.com/intridea/grape/pull/523)) - [@myitcv](https://github.com/myitcv).
+* [#531](https://github.com/intridea/grape/pull/531): Helpers are now available to auth middleware, executing in the context of the endpoint - [@joelvh](https://github.com/joelvh).
 * Your contribution here.
 
 #### Fixes
@@ -15,7 +20,9 @@ Next Release
 * [#495](https://github.com/intridea/grape/pull/495): Fix `ParamsScope#params` for parameters nested inside arrays - [@asross](https://github.com/asross).
 * [#498](https://github.com/intridea/grape/pull/498): Dry up options and headers logic, allow headers to be passed to OPTIONS requests - [@karlfreeman](https://github.com/karlfreeman).
 * [#500](https://github.com/intridea/grape/pull/500): Skip entity auto-detection when explicitely passed - [@yaneq](https://github.com/yaneq).
+* [#503](https://github.com/intridea/grape/pull/503): Calling declared(params) from child namespace fails to include parent namespace defined params - [@myitcv](https://github.com/myitcv).
 * [#512](https://github.com/intridea/grape/pull/512): Don't create `Grape::Request` multiple times - [@dblock](https://github.com/dblock).
+* [#538](https://github.com/intridea/grape/pull/538): Fix default values for grouped params - [@dm1try](https://github.com/dm1try).
 * Your contribution here.
 
 
