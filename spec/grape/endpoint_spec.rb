@@ -177,7 +177,7 @@ describe Grape::Endpoint do
         requires :first
         optional :second
         optional :third, default: 'third-default'
-        group :nested do
+        optional :nested, type: Hash do
           optional :fourth
         end
       end
@@ -214,6 +214,16 @@ describe Grape::Endpoint do
     end
 
     it 'builds nested params when given array' do
+      subject.get '/dummy' do
+      end
+      subject.params do
+        requires :first
+        optional :second
+        optional :third, default: 'third-default'
+        optional :nested, type: Array do
+          optional :fourth
+        end
+      end
       subject.get '/declared' do
         declared(params)[:nested].size.should == 2
         ""
@@ -272,6 +282,16 @@ describe Grape::Endpoint do
               declared_params: declared(params)
             }
           end
+          params do
+            requires :happy
+            optional :days
+          end
+          get '/test' do
+            {
+              params: params,
+              declared_params: declared(params, include_parent_namespaces: false)
+            }
+          end
         end
       end
     end
@@ -281,7 +301,15 @@ describe Grape::Endpoint do
       expect(last_response.status).to eq 200
       json = JSON.parse(last_response.body, symbolize_names: true)
       expect(json[:params][:id]).to eq 123
-      expect(json[:declared_params].keys).to include :foo, :bar, :id
+      expect(json[:declared_params].keys).to match_array [:foo, :bar, :id]
+    end
+
+    it 'does not include params defined in the parent namespace with include_parent_namespaces: false' do
+      get '/something/123/test', happy: 'test', extra: 'hello'
+      expect(last_response.status).to eq 200
+      json = JSON.parse(last_response.body, symbolize_names: true)
+      expect(json[:params][:id]).to eq 123
+      expect(json[:declared_params].keys).to match_array [:happy, :days]
     end
   end
 
@@ -704,4 +732,23 @@ describe Grape::Endpoint do
     end
   end
 
+  context 'version headers' do
+    before do
+      # NOTE: a 404 is returned instead of the 406 if cascade: false is not set.
+      subject.version 'v1', using: :header, vendor: 'ohanapi', cascade: false
+      subject.get '/test' do
+        "Hello!"
+      end
+    end
+
+    it 'result in a 406 response if they are invalid' do
+      get '/test', {}, 'HTTP_ACCEPT' => 'application/vnd.ohanapi.v1+json'
+      last_response.status.should == 406
+    end
+
+    it 'result in a 406 response if they cannot be parsed by rack-accept' do
+      get '/test', {}, 'HTTP_ACCEPT' => 'application/vnd.ohanapi.v1+json; version=1'
+      last_response.status.should == 406
+    end
+  end
 end

@@ -199,6 +199,7 @@ module Grape
       #   @param [Block] block Execution block to handle the given exception.
       #   @param [Hash] options Options for the rescue usage.
       #   @option options [Boolean] :backtrace Include a backtrace in the rescue response.
+      #   @option options [Boolean] :rescue_subclasses Also rescue subclasses of exception classes
       #   @param [Proc] handler Execution proc to handle the given exception as an
       #     alternative to passing a block
       def rescue_from(*args, &block)
@@ -211,19 +212,12 @@ module Grape
         options = args.last.is_a?(Hash) ? args.pop : {}
         handler ||= proc { options[:with] } if options.has_key?(:with)
 
-        if handler
-          args.each do |arg|
-            imbue :rescue_handlers, arg => handler
-          end
-        end
+        handler_type = !!options[:rescue_subclasses] ? :rescue_handlers : :base_only_rescue_handlers
+        imbue handler_type, Hash[args.map { |arg| [arg, handler] }]
 
         imbue(:rescue_options, options)
 
-        if args.include?(:all)
-          set(:rescue_all, true)
-        else
-          imbue(:rescued_errors, args)
-        end
+        set(:rescue_all, true) if args.include?(:all)
       end
 
       # Allows you to specify a default representation entity for a
@@ -274,11 +268,16 @@ module Grape
         if block_given? || new_mod
           mod = settings.peek[:helpers] || Module.new
           if new_mod
+            inject_api_helpers_to_mod(new_mod) if new_mod.is_a?(Helpers)
             mod.class_eval do
               include new_mod
             end
           end
-          mod.class_eval(&block) if block_given?
+          if block_given?
+            inject_api_helpers_to_mod(mod) do
+              mod.class_eval(&block)
+            end
+          end
           set(:helpers, mod)
         else
           mod = Module.new
@@ -515,6 +514,12 @@ module Grape
           e.options[:app].inherit_settings(other_stack) if e.options[:app].respond_to?(:inherit_settings, true)
         end
       end
+
+      def inject_api_helpers_to_mod(mod, &block)
+        mod.extend(Helpers)
+        yield if block_given?
+        mod.api_changed(self)
+      end
     end
 
     def initialize
@@ -584,6 +589,29 @@ module Grape
           header 'Allow', allow_header
           status 405
           ''
+        end
+      end
+    end
+
+    # This module extends user defined helpers
+    # to provide some API-specific functionality
+    module Helpers
+      attr_accessor :api
+      def params(name, &block)
+        @named_params ||= {}
+        @named_params.merge! name => block
+      end
+
+      def api_changed(new_api)
+        @api = new_api
+        process_named_params
+      end
+
+      protected
+
+      def process_named_params
+        if @named_params && @named_params.any?
+          api.imbue(:named_params, @named_params)
         end
       end
     end
